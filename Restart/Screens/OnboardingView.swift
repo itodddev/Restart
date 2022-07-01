@@ -13,6 +13,11 @@ struct OnboardingView: View {
   @State private var buttonWidth: Double = UIScreen.main.bounds.width - 80
   @State private var buttonOffset: CGFloat = 0
   @State private var isAnimating: Bool = false
+  @State private var imageOffset: CGSize = .zero // .zero shortcut for CGSize(width: 0, height: 0)
+  @State private var indicatorOpacity: Double = 1.0
+  @State private var textTitle: String = "Share."
+
+  let hapticFeedback = UINotificationFeedbackGenerator()
 
   var body: some View {
     ZStack {
@@ -24,10 +29,12 @@ struct OnboardingView: View {
 
         Spacer()
         VStack(spacing: 0) {
-          Text("Share.")
+          Text(textTitle)
             .font(.system(size: 60))
             .fontWeight(.heavy)
             .foregroundColor(.white)
+            .transition(.opacity)
+            .id(textTitle) // when the title text is changed, swiftui doesn't see it as a view change so transition opacity isnt triggered, changing the id will re-render view
 
           // Multiline subheader
           Text("""
@@ -47,13 +54,51 @@ struct OnboardingView: View {
         // MARK: - CENTER
         ZStack {
           CircleViewGroup(ShapeColor: .white, ShapeOpacity: 0.2)
+            .offset(x: imageOffset.width * -1) // * -1 so the offset is in the opposite direction of the drag
+            .blur(radius: abs(imageOffset.width / 5)) // abs() so radius is alway positive
+            .animation(.easeOut(duration: 1), value: imageOffset)
 
           Image("character-1")
             .resizable()
             .scaledToFit()
             .opacity(isAnimating ? 1 : 0)
             .animation(.easeOut(duration: 0.5), value: isAnimating)
+            .offset(x: imageOffset.width * 1.2, y: 0)
+            .rotationEffect(.degrees(Double(imageOffset.width / 20))) // makes image rotate on drag, 2nd param is anchor but we dont use defaults to center
+            .gesture(
+              DragGesture()
+                .onChanged { gesture in
+                  if abs(imageOffset.width) <= 150 {  // bounds at how far you can drag the image, abs takes care of  + & -
+                    imageOffset = gesture.translation
+
+                    withAnimation(.linear(duration: 0.25)) {
+                      indicatorOpacity = 0
+                      textTitle = "Give."
+                    }
+                  }
+                }
+                .onEnded { _ in  // when reach the bounds, go back to center
+                  imageOffset = .zero
+
+                  withAnimation(.linear(duration: 0.25)) {
+                    indicatorOpacity = 1
+                    textTitle = "Share."
+                  }
+                }
+            ) //: GESTURE
+            .animation(.easeOut(duration: 1), value: imageOffset) // makes going back to center smooth
         } //: CENTER
+        .overlay(
+          Image(systemName: "arrow.left.and.right.circle")
+            .font(.system(size: 44, weight: .ultraLight))
+            .foregroundColor(.white)
+            .offset(y: 20)
+            .opacity(isAnimating ? 1 : 0)
+            .animation(.easeOut(duration: 1).delay(2), value: isAnimating)  // delay showing for 2 secs
+            .opacity(indicatorOpacity)  // when dragged indication disappears, see .onChanged
+          , alignment: .bottom
+        )
+
         Spacer() // pushes up content from the bottom
 
         // MARK: - FOOTER
@@ -108,9 +153,12 @@ struct OnboardingView: View {
                 .onEnded { _ in // when dragging stops in middle snap back to beginning
                   withAnimation(Animation.easeOut(duration: 0.4)) { // transition between screens
                     if buttonOffset > buttonWidth / 2 {  // cuts button width in half, if after midway on right go back to home view, else go start of button
+                      hapticFeedback.notificationOccurred(.success)
+                      playSound(sound: "chimeup", type: "mp3") // play chime - code in utilities
                       buttonOffset = buttonWidth - 80
                       isOnboardingViewActive = false // go to home screen
                     } else {
+                      hapticFeedback.notificationOccurred(.warning)
                       buttonOffset = 0
                     }
                   }
@@ -130,6 +178,7 @@ struct OnboardingView: View {
     .onAppear(perform: {
       isAnimating = true
     })
+    .preferredColorScheme(.dark)
   } //: BODY
 }
 

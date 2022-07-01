@@ -30,9 +30,7 @@ struct HomeView: View {
               .easeInOut(duration: 4)
               .repeatForever()
             , value: isAnimating)
-          .onAppear(perform: {
-            isAnimating = true
-          })
+
       }
 
       // MARK: CENTER
@@ -49,7 +47,10 @@ struct HomeView: View {
       Spacer()
 
       Button(action: {
-        isOnboardingViewActive = true
+        withAnimation {
+          playSound(sound: "success", type: "m4a")
+          isOnboardingViewActive = true
+        }
       }) {
         // If there are 2 views in a button lable, it automatically renders an HStack
         Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
@@ -63,6 +64,12 @@ struct HomeView: View {
       .controlSize(.large)
 
     } //: VSTACK
+    .onAppear(perform: {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: { // run 1/2 second after screen changes on main thread
+        isAnimating = true
+      })
+    })
+    .preferredColorScheme(.light)
   }
 }
 
